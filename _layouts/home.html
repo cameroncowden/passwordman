@@ -1,0 +1,191 @@
+---
+layout: default
+---
+
+<style type="text/css">
+  #password_entry, #password_new {
+    width: 200px;
+    height: 40px;
+    line-height: 40px;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+  }
+  #passwords_decrypt, #password_create {
+    min-width: 80px;
+    padding: 8px 14px;
+    background: lightblue;
+    color: white;
+    font-weight: bold;
+    margin-top: 10px;
+    outline: 0;
+    border: 0;
+  }
+  p {
+    word-break: break-all;
+  }
+  hr {
+    margin-top: 20px;
+    margin-bottom: 20px;
+  }
+  input[type="text"]{
+    padding-left: 7px;
+  }
+  #password_gen {
+    background-color: #6d6d6d;
+    border-radius: 4px;
+    margin-top: 20px;
+    padding: 20px;
+  }
+  #password_created {
+      margin: 10px;
+      padding: 5px;
+      border-radius: 4px;
+      background: rgba(255,255,255,.5);
+  }
+</style>
+
+<div class="home">
+  {%- if page.title -%}
+    <h1 class="page-heading">{{ page.title }}</h1>
+  {%- endif -%}
+
+  {{ content }}
+
+  <input type="text" name="password" id="password_entry" value="">
+
+  <button id="passwords_decrypt">SHOW PASSWORDS</button>
+
+  <hr>
+
+  {%- if site.passwords.size > 0 -%}
+    <h2 class="post-list-heading">{{ page.list_title | default: "Saved Passwords" }}</h2>
+    <ul class="post-list">
+      {%- for password in site.passwords -%}
+      <li>
+        {%- assign date_format = site.minima.date_format | default: "%b %-d, %Y" -%}
+        <span class="post-meta">{{ password.date | date: date_format }}</span>
+        <h3>
+          <a class="post-link" href="{{ post.url | relative_url }}">
+            {{ password.title | escape }}
+          </a>
+          <p class="password-encrypted">{{ password.content }}</p>
+          <p class="password-decrypted"></p>
+        </h3>
+        {%- if site.show_excerpts -%}
+          {{ password.excerpt }}
+        {%- endif -%}
+      </li>
+      {%- endfor -%}
+    </ul>
+
+  {%- endif -%}
+
+  <hr>
+
+
+  <div id="password_gen">
+    <h2 style="color:white;">Password Generator</h2>
+    <input type="text" name="password_new" id="password_new" placeholder="enter new password">
+    <p class="hint" style="display:none">New Password:</p>
+    <p id="password_created"></p>
+    <p class="hint" style="display:none">Create a new text file in the Jekyll site and paste this into the contents :) <br><small>push to github pages and it'll show up in the above list</small></p>
+    <button id="password_create">CREATE PASSWORD</button>
+  </div>
+
+</div>
+<script type="text/javascript">
+  var decrypt_button = window.passwords_decrypt;
+  var password_input = window.password_entry;
+  var encrypt_button = window.password_create;
+  
+  var password = "";
+  var message = "";
+
+  decrypt_button.onclick = function() {
+    var password_value = password_input.value;
+    password = password_value;
+    //alert("using password: " + password_value);
+    decryptPasswords();
+    return false;
+  }
+  encrypt_button.onclick = function() {
+    var password_value = password_input.value;
+    password = password_value;
+    var new_password = window.password_new.value;
+    //alert("encrypting " + new_password + " using password: " + password_value);
+    var newEP = encrypt(new_password,password);
+    window.password_created.innerHTML = newEP.toString(CryptoJS.enc.Utf8);
+
+    //show hints
+    var hints = document.getElementsByClassName('hint');
+    for(var z = 0; z < hints.length; z++) {
+      var elem = hints[z]; 
+      elem.style.display = 'block'; 
+    }
+    return false;
+  }
+
+  decryptPasswords = function() {
+    //get password(s)
+    var anchors = document.getElementsByClassName('password-encrypted');
+    for(var z = 0; z < anchors.length; z++) {
+        var elem = anchors[z];   
+        var ep = elem.textContent;
+        //decrypt
+        var plainPass = decrypt(ep,password);
+        //hide encrypted password
+        elem.style.display = 'none';
+        //show decrypted password
+        elem.nextElementSibling.innerHTML = plainPass.toString(CryptoJS.enc.Utf8);
+    }
+  }
+
+  //crypto stuff goes here - borrowed from https://embed.plnkr.co/0VPU1zmmWC5wmTKPKnhg/
+  var keySize = 256;
+  var ivSize = 128;
+  var iterations = 100;
+
+  function encrypt (msg, pass) {
+    var salt = CryptoJS.lib.WordArray.random(128/8);
+    
+    var key = CryptoJS.PBKDF2(pass, salt, {
+        keySize: keySize/32,
+        iterations: iterations
+      });
+
+    var iv = CryptoJS.lib.WordArray.random(128/8);
+    
+    var encrypted = CryptoJS.AES.encrypt(msg, key, { 
+      iv: iv, 
+      padding: CryptoJS.pad.Pkcs7,
+      mode: CryptoJS.mode.CBC
+      
+    });
+    
+    // salt, iv will be hex 32 in length
+    // append them to the ciphertext for use  in decryption
+    var transitmessage = salt.toString()+ iv.toString() + encrypted.toString();
+    return transitmessage;
+  }
+
+  function decrypt (transitmessage, pass) {
+    var salt = CryptoJS.enc.Hex.parse(transitmessage.substr(0, 32));
+    var iv = CryptoJS.enc.Hex.parse(transitmessage.substr(32, 32))
+    var encrypted = transitmessage.substring(64);
+    
+    var key = CryptoJS.PBKDF2(pass, salt, {
+        keySize: keySize/32,
+        iterations: iterations
+      });
+
+    var decrypted = CryptoJS.AES.decrypt(encrypted, key, { 
+      iv: iv, 
+      padding: CryptoJS.pad.Pkcs7,
+      mode: CryptoJS.mode.CBC
+      
+    })
+    return decrypted;
+  }
+
+</script>
